@@ -28,8 +28,8 @@ class Particle {
     if (dist < hoverRadius) {
       const force = (hoverRadius - dist) / hoverRadius;
       const angle = Math.atan2(dy, dx);
-      this.vx -= Math.cos(angle) * force * 12;
-      this.vy -= Math.sin(angle) * force * 12;
+      this.vx -= Math.cos(angle) * force * 20;
+      this.vy -= Math.sin(angle) * force * 20;
       this.exploded = true;
     } else {
       this.exploded = false;

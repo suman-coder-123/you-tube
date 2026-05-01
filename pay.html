@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #12161f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+  }
+
+  /* ── STAGE 1: Button ── */
+  #stage-button {
+    display: flex;
+    align-items: center;
+    background: #1e2535;
+    border: 1px solid #2a3347;
+    border-radius: 14px;
+    padding: 14px 20px 14px 14px;
+    gap: 16px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    min-width: 260px;
+  }
+  #stage-button:hover { transform: scale(1.02); box-shadow: 0 6px 24px #0005; }
+
+  .card-icon {
+    width: 54px; height: 38px;
+    background: linear-gradient(135deg, #5ac97a, #3db85e);
+    border-radius: 8px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .card-icon .stripe {
+    width: 34px; height: 7px;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+  }
+  .card-icon .chips { display: flex; gap: 4px; }
+  .card-icon .chip {
+    width: 8px; height: 5px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 2px;
+  }
+
+  .btn-label { color: #e8edf5; font-size: 15px; font-weight: 500; flex: 1; }
+  .btn-arrow { color: #4a5672; font-size: 18px; }
+
+  /* ── STAGE 2 & 3: Machine ── */
+  #stage-machine {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .machine-body {
+    width: 160px; height: 110px;
+    background: linear-gradient(180deg, #4dc870 0%, #38a855 100%);
+    border-radius: 16px 16px 10px 10px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-end;
+    padding-bottom: 14px;
+    position: relative;
+    box-shadow: 0 8px 30px #0006, inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  .slot {
+    position: absolute;
+    top: -6px; left: 50%; transform: translateX(-50%);
+    width: 80px; height: 12px;
+    background: #2a7a3e;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .slot-inner {
+    width: 100%; height: 100%;
+    background: #1d5a2d;
+    border-radius: 4px;
+  }
+
+  .machine-screen {
+    width: 90px; height: 44px;
+    background: #1a2030;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 6px;
+    border: 2px solid #2a7a3e;
+    overflow: hidden;
+    position: relative;
+  }
+  .screen-dots { display: flex; gap: 5px; }
+  .screen-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #2a3550;
+    transition: background 0.3s;
+  }
+  .screen-processing {
+    display: none;
+    font-size: 9px; color: #5ac97a;
+    letter-spacing: 1px; font-weight: 600;
+    text-align: center; padding: 4px;
+  }
+  .screen-check {
+    display: none;
+    font-size: 26px;
+  }
+
+  .machine-btns { display: flex; gap: 6px; }
+  .machine-btn { width: 18px; height: 10px; border-radius: 3px; }
+  .machine-btn.red    { background: #e05252; }
+  .machine-btn.yellow { background: #e0c452; }
+  .machine-btn.green  { background: #52e07a; }
+
+  /* ── Travelling Card ── */
+  #travel-card {
+    display: none;
+    width: 80px; height: 50px;
+    background: linear-gradient(135deg, #5ac97a, #3db85e);
+    border-radius: 8px;
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 4px 16px #0004;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  #travel-card .stripe { width: 60px; height: 8px; background: rgba(255,255,255,0.35); border-radius: 2px; }
+  #travel-card .chips  { display: flex; gap: 5px; }
+  #travel-card .chip   { width: 10px; height: 6px; background: rgba(0,0,0,0.25); border-radius: 2px; }
+
+  /* ── Success Message ── */
+  #success-msg {
+    display: none;
+    color: #5ac97a;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 12px;
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+  }
+
+  /* ── Try Again Button ── */
+  #try-again {
+    display: none;
+    margin-top: 8px;
+    background: transparent;
+    border: 1px solid #2a3347;
+    color: #4a5672;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 8px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0;
+    animation: fadeIn 0.5s ease 0.4s forwards;
+  }
+  #try-again:hover { color: #e8edf5; border-color: #5ac97a; }
+
+  /* ── Keyframe Animations ── */
+  @keyframes slideDown {
+    0%   { transform: translateY(0);    opacity: 1; }
+    100% { transform: translateY(60px); opacity: 0; }
+  }
+  @keyframes cardInsert {
+    0%   { transform: translateY(0); }
+    70%  { transform: translateY(52px); }
+    100% { transform: translateY(46px); }
+  }
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+  @keyframes popIn {
+    0%   { transform: scale(0.5); opacity: 0; }
+    70%  { transform: scale(1.2); }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  .anim-slide-down  { animation: slideDown 0.4s ease forwards; }
+  .anim-card-insert { animation: cardInsert 0.7s cubic-bezier(.4,0,.2,1) forwards; }
+  .anim-blink       { animation: blink 0.5s ease infinite; }
+  .anim-pop         { animation: popIn 0.5s cubic-bezier(.4,0,.2,1) forwards; }
+  .dot-active       { background: #5ac97a !important; }
+</style>
+</head>
+<body>
+
+<div class="scene">
+
+  <!-- Stage 1: Button -->
+  <div id="stage-button" onclick="startAnimation()">
+    <div class="card-icon">
+      <div class="stripe"></div>
+      <div class="chips">
+        <div class="chip"></div>
+        <div class="chip"></div>
+        <div class="chip"></div>
+      </div>
+    </div>
+    <span class="btn-label">New Transaction</span>
+    <span class="btn-arrow">›</span>
+  </div>
+
+  <!-- Stage 2/3: Machine + Card -->
+  <div id="stage-machine">
+    <div id="travel-card">
+      <div class="stripe"></div>
+      <div class="chips">
+        <div class="chip"></div>
+        <div class="chip"></div>
+      </div>
+    </div>
+
+    <div class="machine-body">
+      <div class="slot"><div class="slot-inner"></div></div>
+      <div class="machine-screen">
+        <div class="screen-dots" id="screen-dots">
+          <div class="screen-dot" id="d1"></div>
+          <div class="screen-dot" id="d2"></div>
+          <div class="screen-dot" id="d3"></div>
+        </div>
+        <div class="screen-processing" id="screen-processing">PROCESSING</div>
+        <div class="screen-check" id="screen-check">✅</div>
+      </div>
+      <div class="machine-btns">
+        <div class="machine-btn red"></div>
+        <div class="machine-btn yellow"></div>
+        <div class="machine-btn green"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="success-msg">Payment Successful</div>
+  <button id="try-again" onclick="resetAnimation()">↺ Try Again</button>
+
+</div>
+
+<script>
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  async function startAnimation() {
+    const btn         = document.getElementById('stage-button');
+    const machine     = document.getElementById('stage-machine');
+    const card        = document.getElementById('travel-card');
+    const successMsg  = document.getElementById('success-msg');
+    const tryAgain    = document.getElementById('try-again');
+    const dots        = document.getElementById('screen-dots');
+    const processing  = document.getElementById('screen-processing');
+    const checkEl     = document.getElementById('screen-check');
+    const d1 = document.getElementById('d1');
+    const d2 = document.getElementById('d2');
+    const d3 = document.getElementById('d3');
+
+    // Step 1: slide button away
+    btn.classList.add('anim-slide-down');
+    await sleep(400);
+    btn.style.display = 'none';
+
+    // Step 2: show machine + card
+    machine.style.display = 'flex';
+    card.style.display = 'flex';
+    await sleep(100);
+
+    // Dots light up one by one
+    setTimeout(() => { d1.classList.add('dot-active'); }, 200);
+    setTimeout(() => { d2.classList.add('dot-active'); }, 500);
+    setTimeout(() => { d3.classList.add('dot-active'); }, 800);
+
+    // Step 3: card inserts into machine
+    await sleep(300);
+    card.classList.add('anim-card-insert');
+
+    await sleep(900);
+    card.style.opacity = '0';
+
+    // Step 4: processing text blinks
+    await sleep(200);
+    dots.style.display = 'none';
+    processing.style.display = 'block';
+    processing.classList.add('anim-blink');
+
+    await sleep(1800);
+
+    // Step 5: success checkmark
+    processing.style.display = 'none';
+    checkEl.style.display = 'block';
+    checkEl.classList.add('anim-pop');
+
+    // Step 6: success message + try again
+    await sleep(400);
+    successMsg.style.display = 'block';
+    tryAgain.style.display = 'inline-block';
+  }
+
+  function resetAnimation() {
+    // Reset everything back to initial state
+    const btn         = document.getElementById('stage-button');
+    const machine     = document.getElementById('stage-machine');
+    const card        = document.getElementById('travel-card');
+    const successMsg  = document.getElementById('success-msg');
+    const tryAgain    = document.getElementById('try-again');
+    const dots        = document.getElementById('screen-dots');
+    const processing  = document.getElementById('screen-processing');
+    const checkEl     = document.getElementById('screen-check');
+    const d1 = document.getElementById('d1');
+    const d2 = document.getElementById('d2');
+    const d3 = document.getElementById('d3');
+
+    btn.style.display = 'flex';
+    btn.classList.remove('anim-slide-down');
+
+    machine.style.display = 'none';
+    card.style.display = 'none';
+    card.style.opacity = '1';
+    card.classList.remove('anim-card-insert');
+
+    dots.style.display = 'flex';
+    processing.style.display = 'none';
+    processing.classList.remove('anim-blink');
+    checkEl.style.display = 'none';
+    checkEl.classList.remove('anim-pop');
+
+    d1.classList.remove('dot-active');
+    d2.classList.remove('dot-active');
+    d3.classList.remove('dot-active');
+
+    successMsg.style.display = 'none';
+    tryAgain.style.display = 'none';
+
+    // Force reflow so animations re-trigger next time
+    void btn.offsetWidth;
+  }
+</script>
+
+</body>
+</html>
