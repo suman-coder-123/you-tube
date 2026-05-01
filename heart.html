@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particle Heart</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Lato', sans-serif;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #subtitle {
+    position: fixed;
+    top: 60px;
+    left: 60px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1.5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    text-shadow: 0 0 10px rgba(255,100,180,0.5);
+  }
+
+  #replay-btn {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    border: 1px solid rgba(255,100,180,0.4);
+    color: rgba(255,150,200,0.8);
+    font-family: 'Lato', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    padding: 10px 28px;
+    border-radius: 30px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.4s ease;
+  }
+  #replay-btn:hover {
+    background: rgba(255,100,180,0.15);
+    border-color: rgba(255,100,180,0.8);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="subtitle"></div>
+<button id="replay-btn" onclick="init()">↺ REPLAY</button>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const subtitle = document.getElementById('subtitle');
+const replayBtn = document.getElementById('replay-btn');
+
+canvas.width  = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const W = canvas.width;
+const H = canvas.height;
+const CX = W / 2;
+const CY = H / 2;
+
+// Text phases matching the video
+const textPhases = [
+  { time: 1.2,  text: 'for all' },
+  { time: 2.8,  text: 'for all that I' },
+  { time: 4.5,  text: 'for all that I want\nto say.' },
+];
+
+// Heart parametric: x = 16sin³t, y = -(13cos t − 5cos2t − 2cos3t − cos4t)
+function heartPoint(t, scale, cx, cy) {
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+  return {
+    x: cx + x * scale,
+    y: cy + y * scale
+  };
+}
+
+// Generate target heart positions
+function getHeartTargets(count) {
+  const pts = [];
+  for (let i = 0; i < count; i++) {
+    const t = (i / count) * Math.PI * 2;
+    // spread around outline with slight noise
+    const noise = (Math.random() - 0.5) * 12;
+    const scale = 18 + noise * 0.3;
+    const p = heartPoint(t, scale, CX, CY - 20);
+    // add perpendicular scatter for thickness
+    const dx = 16 * 3 * Math.pow(Math.sin(t), 2) * Math.cos(t);
+    const dy = -(- 13 * Math.sin(t) + 10 * Math.sin(2*t) + 6 * Math.sin(3*t) + 4 * Math.sin(4*t));
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const perp = { x: -dy/len, y: dx/len };
+    const scatter = (Math.random() - 0.5) * 14;
+    pts.push({
+      x: p.x + perp.x * scatter,
+      y: p.y + perp.y * scatter
+    });
+  }
+  return pts;
+}
+
+const PARTICLE_COUNT = 2200;
+
+let particles = [];
+let targets = [];
+let startTime = null;
+let animFrame = null;
+let phase = 0; // 0=explode in, 1=form half, 2=form full, 3=complete
+let textIdx = 0;
+
+class Particle {
+  constructor(tx, ty) {
+    // start from a random spark origin (bottom-center area, like video)
+    const originX = CX + (Math.random() - 0.5) * 60;
+    const originY = CY + 80 + Math.random() * 60;
+    this.x = originX;
+    this.y = originY;
+    this.sx = originX;
+    this.sy = originY;
+    this.tx = tx;
+    this.ty = ty;
+    this.size = Math.random() * 2.2 + 0.4;
+    this.delay = Math.random() * 2.5; // stagger over 2.5s
+    this.duration = 1.5 + Math.random() * 1.2;
+    this.progress = 0;
+    // colour: pink/magenta/rose palette
+    const hue = 310 + (Math.random() - 0.5) * 40;
+    const sat = 70 + Math.random() * 30;
+    const lit = 55 + Math.random() * 30;
+    this.color = `hsl(${hue},${sat}%,${lit}%)`;
+    this.alpha = 0;
+    // random drift offset for sparkle feel
+    this.drift = {
+      x: (Math.random() - 0.5) * 120,
+      y: -(Math.random()) * 160
+    };
+  }
+
+  update(elapsed) {
+    const t = Math.max(0, elapsed - this.delay);
+    if (t <= 0) { this.alpha = 0; return; }
+    this.progress = Math.min(1, t / this.duration);
+    // easeInOutCubic
+    const p = this.progress < 0.5
+      ? 4 * this.progress * this.progress * this.progress
+      : 1 - Math.pow(-2 * this.progress + 2, 3) / 2;
+
+    // arc through drift point
+    const arc = Math.sin(this.progress * Math.PI);
+    this.x = this.sx + (this.tx - this.sx) * p + this.drift.x * arc * (1 - p);
+    this.y = this.sy + (this.ty - this.sy) * p + this.drift.y * arc * (1 - p);
+
+    // fade in then stay
+    this.alpha = Math.min(1, t / 0.4) * (0.7 + Math.random() * 0.3);
+  }
+
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.alpha * (0.75 + Math.random() * 0.25);
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 4 + Math.random() * 4;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function init() {
+  cancelAnimationFrame(animFrame);
+  subtitle.style.opacity = '0';
+  subtitle.textContent = '';
+  replayBtn.style.opacity = '0';
+  textIdx = 0;
+  startTime = null;
+
+  targets = getHeartTargets(PARTICLE_COUNT);
+  particles = targets.map(t => new Particle(t.x, t.y));
+
+  requestAnimationFrame(loop);
+}
+
+function loop(ts) {
+  if (!startTime) startTime = ts;
+  const elapsed = (ts - startTime) / 1000; // seconds
+
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, 0, W, H);
+
+  // update & draw particles
+  for (const p of particles) {
+    p.update(elapsed);
+    if (p.alpha > 0) p.draw();
+  }
+
+  // text phases
+  while (textIdx < textPhases.length && elapsed >= textPhases[textIdx].time) {
+    subtitle.innerHTML = textPhases[textIdx].text.replace('\n', '<br>');
+    subtitle.style.opacity = '1';
+    textIdx++;
+  }
+
+  // show replay when done (~6s)
+  if (elapsed > 6.5) {
+    replayBtn.style.opacity = '1';
+    return; // stop loop
+  }
+
+  animFrame = requestAnimationFrame(loop);
+}
+
+// Start on load
+window.addEventListener('resize', () => {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  init();
+});
+
+init();
+</script>
+</body>
+</html>
